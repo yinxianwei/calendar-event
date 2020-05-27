@@ -1,0 +1,199 @@
+<!DOCTYPE HTML>
+<html>
+
+<head>
+    <meta name="renderer" content="webkit">
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1">
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0" name="viewport" />
+    <script src="https://cdn.jsdelivr.net/npm/vue"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/moment.js/2.26.0/moment.min.js"></script>
+    <style>
+        .cont {
+            width: 375px;
+            border: 1px solid #eee;
+            border-bottom: none;
+            margin-left: 35px;
+            position: relative;
+        }
+
+        .line {
+            height: 30px;
+            border-bottom: 1px solid #eee;
+            position: relative;
+            box-sizing: border-box;
+        }
+
+        .line span {
+            position: absolute;
+            top: 0;
+            left: -35px;
+            font-size: 12px;
+            line-height: 1;
+        }
+
+        .timeCell {
+            box-sizing: border-box;
+            padding: 1px;
+            position: absolute;
+        }
+
+        .timeCell .tcont {
+            width: 100%;
+            height: 100%;
+            background-color: aqua;
+        }
+    </style>
+</head>
+
+
+<body>
+    <div id="app">
+        <div class="cont">
+            <div v-for="item in lines"
+                 class="line">
+                <span>{{item}}</span>
+            </div>
+            <div v-for="item in rows"
+                 class="timeCell"
+                 :style="item.style"
+                 :sdate="item.startTime"
+                 :edate="item.endTime">
+                <div class="tcont"></div>
+            </div>
+        </div>
+    </div>
+    <script>
+        var app = new Vue({
+            el: '#app',
+            data: {
+                title: '',
+                startTime: moment().startOf('d').add(6, 'h'),
+                endTime: moment().startOf('d').add(23, 'h'),
+                lines: [],
+                rows: [],
+                interval: null
+            },
+            mounted: function() {
+                this.init();
+            },
+            methods: {
+                init() {
+                    this.initData();
+                    this.loadLines();
+                    this.loadStyle();
+                },
+                initData() {
+                    this.rows = [];
+                    let time = moment().startOf('d').add(6, 'h');
+                    let l = this.random(30);
+                    for (let index = 0; index < l; index++) {
+                        let t = this.random(10);
+                        let startTime = moment(time).add(t, 'h').format('YYYY-MM-DD HH:mm:ss');
+                        this.rows.push({
+                            startTime,
+                            endTime: moment(startTime).add(this.random(17 - t), 'h').format('YYYY-MM-DD HH:mm:ss'),
+                            createTime: moment().format('YYYY-MM-DD HH:mm:ss')
+                        });
+                    }
+                },
+                random(e) {
+                    return Math.ceil(Math.random() * e);
+                },
+                loadLines() {
+                    this.lines = [];
+                    var s = moment(this.startTime);
+                    while (s.isSameOrBefore(this.endTime)) {
+                        this.lines.push(moment(s).format('HH:mm'));
+                        s.add(1, 'h');
+                    }
+                },
+                loadStyle() {
+                    this.rows.sort((a, b) => {
+                        let m = moment(a.startTime);
+                        if (m.isBefore(b.startTime)) {
+                            return -1;
+                        } else if (m.isAfter(b.startTime)) {
+                            return 1;
+                        }
+                        m = moment(a.endTime)
+                        if (m.isAfter(b.endTime)) {
+                            return -1;
+                        } else if (m.isBefore(b.endTime)) {
+                            return 1;
+                        }
+                        m = moment(a.createTime)
+                        if (m.isBefore(b.createTime)) {
+                            return -1;
+                        } else if (m.isAfter(b.createTime)) {
+                            return 1;
+                        }
+                        return 0;
+                    });
+                    if (this.rows.length) {
+                        let ls = [];
+                        let lastList = [];
+                        this.rows.forEach(val => {
+                            val.style = {
+                                top: `${moment(val.startTime).diff(this.startTime, 'm') / 2}px`,
+                                height: `${moment(val.endTime).diff(val.startTime, 'm') / 2}px`,
+                            }
+                            if (this.collision(val.startTime, lastList) != -1) {
+                                lastList.push(val);
+                            } else {
+                                lastList = [val];
+                                ls.push(lastList);
+                            }
+                        });
+                        let ls2 = [];
+                        ls.forEach(temp => {
+                            let templs = [];
+                            temp.forEach(val => {
+                                let item = templs.find(v => this.collision(val.startTime, v) == -1);
+                                if (item) {
+                                    item.push(val);
+                                } else {
+                                    templs.push([val]);
+                                }
+                            });
+                            ls2.push(templs);
+                        });
+                        ls2.forEach(temp => {
+                            w = 100 / temp.length;
+                            temp.forEach((temp2, index) => {
+                                let slist = temp.slice(index, temp.length);
+                                temp2.forEach((val, subIndex) => {
+                                    val.style.left = `${index * w}%`;
+                                    let wl = this.getSpace(val, slist);
+                                    if (wl) {
+                                        val.style.width = `${w + wl * w}%`;
+                                    } else {
+                                        val.style.width = `${w}%`;
+                                    }
+                                });
+                            })
+                        });
+                    }
+                },
+                getSpace(val, list) {
+                    let res = 0;
+                    for (let index = 1; index < list.length; index++) {
+                        let tempList = list[index];
+                        if (tempList.findIndex(v => !(moment(val.endTime).isSameOrBefore(v.startTime) || moment(val.startTime).isSameOrAfter(v.endTime))) == -1) {
+                            res = index;
+                        } else {
+                            break;
+                        }
+                    }
+                    return res;
+                },
+                collision(startTime, list) {
+                    return list.findIndex(val => moment(startTime).isBetween(val.startTime, val.endTime) || moment(startTime).isSame(val.startTime))
+                }
+            }
+        })
+    </script>
+
+</body>
+
+</html>
